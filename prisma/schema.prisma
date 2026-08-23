@@ -1,0 +1,9 @@
+// Madar database schema — the full model set is added in Phase A.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
