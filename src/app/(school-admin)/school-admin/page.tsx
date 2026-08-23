@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AppHeader } from "@/components/shared/app-header";
 import { apiFetch } from "@/lib/api-client";
 
 type SchoolUser = {
@@ -101,9 +102,11 @@ export default function SchoolAdminPage() {
     "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="min-h-screen">
+      <AppHeader title="لوحة مدير المدرسة" />
+      <div className="mx-auto max-w-4xl space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">لوحة مدير المدرسة — المستخدمون</h1>
+        <h2 className="text-lg font-bold text-gray-700">مستخدمو المدرسة</h2>
         <Button onClick={() => setShowForm((v) => !v)}>
           {showForm ? "إلغاء" : "إضافة معلم / طالب"}
         </Button>
@@ -241,6 +244,7 @@ export default function SchoolAdminPage() {
           </Table>
         </CardContent>
       </Card>
+      </div>
     </main>
   );
 }

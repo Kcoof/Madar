@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { AppHeader } from "@/components/shared/app-header";
 import { apiFetch } from "@/lib/api-client";
 
 type Lesson = {
@@ -36,8 +37,9 @@ export default function StudentPage() {
   }, [load]);
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">دروسي</h1>
+    <main className="min-h-screen">
+      <AppHeader title="دروسي" />
+      <div className="mx-auto max-w-4xl space-y-6 p-6">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-amber-600">{message}</p>}
 
@@ -68,6 +70,7 @@ export default function StudentPage() {
       {lessons.length === 0 && !message && (
         <p className="text-center text-gray-500">لا توجد دروس منشورة لصفك بعد</p>
       )}
+      </div>
     </main>
   );
 }

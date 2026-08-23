@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AppHeader } from "@/components/shared/app-header";
 import { apiFetch } from "@/lib/api-client";
 
 type Unit = { id: string; title: string };
@@ -134,8 +135,9 @@ export default function TeacherPage() {
     "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 p-6">
-      <h1 className="text-2xl font-bold">لوحة المعلم — الدروس</h1>
+    <main className="min-h-screen">
+      <AppHeader title="لوحة المعلم" />
+      <div className="mx-auto max-w-5xl space-y-6 p-6">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Card>
@@ -327,6 +329,7 @@ export default function TeacherPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </main>
   );
 }
