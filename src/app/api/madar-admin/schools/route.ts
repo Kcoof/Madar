@@ -3,37 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/permissions";
 import { createSchoolSchema } from "@/lib/validators/school";
-import { supabaseConfigured } from "@/lib/session";
-import { devCreateAuthUser } from "@/lib/dev-auth";
-
-// Creates the school admin's auth account (Supabase admin API with the
-// service role key — server-side administrative use only — or the local
-// auth.users stub in dev mode). Returns the new auth user id.
-async function createAdminAuthUser(
-  email: string,
-  password: string,
-  fullName: string
-): Promise<string> {
-  if (supabaseConfigured) {
-    const { createClient } = await import("@supabase/supabase-js");
-    const admin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-    const { data, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { fullName },
-    });
-    if (error || !data.user) {
-      throw new ApiError(400, "ADMIN_CREATE_FAILED", error?.message ?? "فشل إنشاء حساب المدير");
-    }
-    return data.user.id;
-  }
-  return devCreateAuthUser(email, password, fullName);
-}
+import { createAuthUser } from "@/lib/auth-users";
 
 // GET /api/madar-admin/schools — list all schools. MADAR_OWNER only.
 export async function GET() {
@@ -65,7 +35,7 @@ export async function POST(request: Request) {
 
     try {
       // Trigger creates the User row (STUDENT); promote it to the school's admin.
-      const adminId = await createAdminAuthUser(adminEmail, body.adminPassword, body.adminFullName);
+      const adminId = await createAuthUser(adminEmail, body.adminPassword, body.adminFullName);
       const admin = await prisma.user.update({
         where: { id: adminId },
         data: {

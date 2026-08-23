@@ -13,6 +13,8 @@ const roleHome: Record<string, string> = {
   MADAR_OWNER: "/madar-admin",
   MADAR_SUPPORT: "/madar-admin",
   SCHOOL_ADMIN: "/school-admin",
+  TEACHER: "/teacher",
+  STUDENT: "/student",
 };
 
 export default function LoginPage() {
