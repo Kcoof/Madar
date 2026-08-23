@@ -18,20 +18,45 @@ type School = {
   _count: { users: number };
 };
 
+type MadarUser = {
+  id: string;
+  fullName: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+  school: { name: string } | null;
+};
+
+const roleLabels: Record<string, string> = {
+  MADAR_OWNER: "مالك مدار",
+  MADAR_SUPPORT: "دعم مدار",
+  SCHOOL_ADMIN: "مدير مدرسة",
+  TEACHER: "معلم",
+  STUDENT: "طالب",
+  PARENT: "ولي أمر",
+};
+
 export default function MadarAdminPage() {
   const router = useRouter();
   const [schools, setSchools] = useState<School[]>([]);
+  const [users, setUsers] = useState<MadarUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [pending, setPending] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", adminFullName: "", adminEmail: "", adminPassword: "" });
 
   const load = useCallback(async () => {
     try {
-      const data = await apiFetch<{ schools: School[] }>("/api/madar-admin/schools");
-      setSchools(data.schools);
+      const [schoolsData, usersData] = await Promise.all([
+        apiFetch<{ schools: School[] }>("/api/madar-admin/schools"),
+        apiFetch<{ users: MadarUser[] }>("/api/madar-admin/users"),
+      ]);
+      setSchools(schoolsData.schools);
+      setUsers(usersData.users);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "فشل تحميل المدارس";
+      const message = err instanceof Error ? err.message : "فشل تحميل البيانات";
       if (message.includes("تسجيل الدخول")) router.push("/login");
       setError(message);
     }
@@ -60,10 +85,25 @@ export default function MadarAdminPage() {
     }
   }
 
+  async function onActivate(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await apiFetch(`/api/madar-admin/users/${id}/activate`, { method: "PATCH" });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تفعيل الحساب");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  const waitingCount = users.filter((u) => !u.isActive).length;
+
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">لوحة إدارة مدار — المدارس</h1>
+        <h1 className="text-2xl font-bold">لوحة إدارة مدار</h1>
         <Button onClick={() => setShowForm((v) => !v)}>
           {showForm ? "إلغاء" : "إضافة مدرسة"}
         </Button>
@@ -129,6 +169,62 @@ export default function MadarAdminPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            الحسابات بانتظار التفعيل والمستخدمون ({users.length}
+            {waitingCount > 0 ? ` — ${waitingCount} بانتظار التفعيل` : ""})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الاسم</TableHead>
+                <TableHead>البريد الإلكتروني</TableHead>
+                <TableHead>الدور</TableHead>
+                <TableHead>المدرسة</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">{user.fullName}</TableCell>
+                  <TableCell dir="ltr">{user.email}</TableCell>
+                  <TableCell>{roleLabels[user.role] ?? user.role}</TableCell>
+                  <TableCell>{user.school?.name ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant={user.isActive ? "default" : "secondary"}>
+                      {user.isActive ? "مفعّل" : "بانتظار التفعيل"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {!user.isActive && (
+                      <Button
+                        size="sm"
+                        disabled={busyId === user.id}
+                        onClick={() => onActivate(user.id)}
+                      >
+                        {busyId === user.id ? "..." : "تفعيل"}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {users.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-gray-500">
+                    لا يوجد مستخدمون بعد
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
