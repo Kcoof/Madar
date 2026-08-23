@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# مدار التعليمية (Madar)
 
-## Getting Started
+منصة تعليمية متعددة المدارس — Next.js 14 (App Router) + TypeScript + Tailwind CSS + shadcn/ui + Prisma + Supabase (PostgreSQL + Auth + Storage).
 
-First, run the development server:
+خطة التنفيذ الكاملة في [`madar_plan_v2.0.md`](./madar_plan_v2.0.md) — يتم التنفيذ مرحلة بمرحلة (0 → G) مع التحقق من معيار القبول قبل الانتقال للمرحلة التالية.
+
+## التشغيل المحلي (Local Development)
+
+قاعدة البيانات محلية حاليًا (PostgreSQL 17 محمّل في `C:\Users\STARS\postgres`) — سيتم الربط بمشروع Supabase السحابي لاحقًا.
+
+### 1) تشغيل قاعدة البيانات المحلية
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# بدء الخادم
+C:/Users/STARS/postgres/pgsql/bin/pg_ctl.exe -D C:/Users/STARS/postgres/data -l C:/Users/STARS/postgres/pg.log start
+
+# إيقاف الخادم
+C:/Users/STARS/postgres/pgsql/bin/pg_ctl.exe -D C:/Users/STARS/postgres/data stop
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2) متغيرات البيئة
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+انسخ القيم من `.env` المحلي (غير مرفوع إلى GitHub):
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+DATABASE_URL=postgresql://postgres:madar_local_dev_2026@127.0.0.1:5432/madar
+```
 
-## Learn More
+قيم Supabase (`NEXT_PUBLIC_SUPABASE_URL` وغيرها) تُملأ عند الربط بالمشروع السحابي.
 
-To learn more about Next.js, take a look at the following resources:
+### 3) تشغيل التطبيق
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npx prisma generate
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+ثم افتح http://localhost:3000
 
-## Deploy on Vercel
+## الهيكل
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+prisma/schema.prisma    # سكيمة قاعدة البيانات (مصدر الحقيقة)
+supabase/migrations/    # ملفات SQL للـ RLS والـ Triggers
+src/app/                # الصفحات ومسارات API (App Router)
+src/lib/supabase/       # عملاء Supabase (متصفح + خادم)
+src/lib/permissions.ts  # requireRole + withSchoolScope
+```
