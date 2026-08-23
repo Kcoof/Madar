@@ -1,4 +1,7 @@
-// Madar database schema — the full model set is added in Phase A.
+// Madar database schema — source of truth (copied from madar_plan_v2.0.md)
+// Note: User.id has NO default — it mirrors auth.users.id (Supabase Auth),
+// created via the handle_new_user trigger defined in supabase/migrations.
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -6,4 +9,285 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+}
+
+enum Role {
+  MADAR_OWNER
+  MADAR_SUPPORT
+  SCHOOL_ADMIN
+  TEACHER
+  STUDENT
+  PARENT
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum LessonStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SubscriptionType {
+  FULL_YEAR
+  SINGLE_SUBJECT
+}
+
+model School {
+  id        String           @id @default(cuid())
+  name      String
+  isActive  Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  users     User[]
+  contracts SchoolContract[]
+  content   Lesson[]         @relation("SchoolContent")
+}
+
+model User {
+  id             String   @id // same id as auth.users — set by the trigger, never generated here
+  fullName       String
+  email          String   @unique
+  role           Role
+  schoolId       String? // null for Madar owner/support
+  school         School?  @relation(fields: [schoolId], references: [id])
+  stageId        String? // students only
+  gradeId        String? // students only
+  isActive       Boolean  @default(false) // manual activation by default
+  createdAt      DateTime @default(now())
+  studentParents ParentStudentLink[] @relation("StudentLink")
+  parentOf       ParentStudentLink[] @relation("ParentLink")
+  auditLogs      AuditLog[]
+  results        Result[]
+  subscriptions  Subscription[]
+  progress       Progress[]
+  supportTickets SupportTicket[]
+}
+
+model ParentStudentLink {
+  id        String @id @default(cuid())
+  parentId  String
+  studentId String
+  parent    User   @relation("ParentLink", fields: [parentId], references: [id])
+  student   User   @relation("StudentLink", fields: [studentId], references: [id])
+}
+
+model AcademicStage {
+  id     String @id @default(cuid())
+  name   String // متوسط / ثانوي / ابتدائي (لاحقًا)
+  grades Grade[]
+}
+
+model Grade {
+  id      String        @id @default(cuid())
+  name    String
+  stageId String
+  stage   AcademicStage @relation(fields: [stageId], references: [id])
+  subjects Subject[]
+}
+
+model Subject {
+  id      String @id @default(cuid())
+  name    String
+  gradeId String
+  grade   Grade  @relation(fields: [gradeId], references: [id])
+  units   Unit[]
+}
+
+model Unit {
+  id        String  @id @default(cuid())
+  title     String
+  subjectId String
+  subject   Subject @relation(fields: [subjectId], references: [id])
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id        String       @id @default(cuid())
+  title     String
+  unitId    String
+  unit      Unit         @relation(fields: [unitId], references: [id])
+  status    LessonStatus @default(DRAFT)
+  schoolId  String? // null = central Madar content
+  school    School?      @relation("SchoolContent", fields: [schoolId], references: [id])
+  videos    Video[]
+  files     File[]
+  quizzes   Quiz[]
+  assignments Assignment[]
+  createdAt DateTime     @default(now())
+}
+
+model Video {
+  id          String              @id @default(cuid())
+  lessonId    String
+  lesson      Lesson              @relation(fields: [lessonId], references: [id])
+  providerId  String // video id at the streaming provider (Bunny/Mux)
+  durationSec Int?
+  watchLogs   VideoWatchProgress[]
+}
+
+model VideoWatchProgress {
+  id             String   @id @default(cuid())
+  videoId        String
+  studentId      String
+  video          Video    @relation(fields: [videoId], references: [id])
+  watchedPercent Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model File {
+  id       String @id @default(cuid())
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+  url      String
+  fileName String
+}
+
+model LiveClass {
+  id             String    @id @default(cuid())
+  subjectId      String
+  teacherId      String
+  scheduledAt    DateTime
+  providerRoomId String?
+  recordingUrl   String?
+  createdAt      DateTime  @default(now())
+}
+
+model Quiz {
+  id          String     @id @default(cuid())
+  lessonId    String
+  lesson      Lesson     @relation(fields: [lessonId], references: [id])
+  title       String
+  timeLimitMin Int?
+  maxAttempts Int        @default(1)
+  questions   Question[]
+  results     Result[]
+}
+
+model Assignment {
+  id      String    @id @default(cuid())
+  lessonId String
+  lesson   Lesson    @relation(fields: [lessonId], references: [id])
+  title   String
+  dueDate DateTime?
+}
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  SHORT_ANSWER
+  MULTI_SELECT
+}
+
+model Question {
+  id       String       @id @default(cuid())
+  quizId   String
+  quiz     Quiz         @relation(fields: [quizId], references: [id])
+  type     QuestionType
+  text     String
+  points   Int          @default(1)
+  answers  Answer[]
+}
+
+model Answer {
+  id         String  @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id])
+  text       String
+  isCorrect  Boolean @default(false)
+}
+
+model Result {
+  id        String   @id @default(cuid())
+  quizId    String
+  studentId String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  student   User     @relation(fields: [studentId], references: [id])
+  score     Int
+  maxScore  Int
+  attempt   Int      @default(1)
+  createdAt DateTime @default(now())
+}
+
+model Progress {
+  id             String   @id @default(cuid())
+  studentId      String
+  student        User     @relation(fields: [studentId], references: [id])
+  subjectId      String
+  completionRate Int      @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model SubscriptionPlan {
+  id    String           @id @default(cuid())
+  type  SubscriptionType
+  name  String
+  price Int
+}
+
+model Subscription {
+  id        String             @id @default(cuid())
+  studentId String
+  student   User               @relation(fields: [studentId], references: [id])
+  planId    String
+  subjectId String? // only for SINGLE_SUBJECT type
+  status    SubscriptionStatus @default(PENDING)
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime           @default(now())
+}
+
+model SchoolContract {
+  id           String    @id @default(cuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id])
+  licenseCount Int
+  startDate    DateTime
+  endDate      DateTime
+  isActive     Boolean   @default(true)
+  invoices     Invoice[]
+}
+
+model Invoice {
+  id         String         @id @default(cuid())
+  contractId String
+  contract   SchoolContract @relation(fields: [contractId], references: [id])
+  amount     Int
+  isPaid     Boolean        @default(false)
+  issuedAt   DateTime       @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  channel   String // IN_APP | EMAIL | SMS (later)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  subject   String
+  message   String
+  status    String   @default("OPEN") // OPEN | CLOSED
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String // e.g. SUBSCRIPTION_ACTIVATED, USER_DELETED
+  targetId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
 }
