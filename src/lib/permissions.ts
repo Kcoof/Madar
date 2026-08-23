@@ -31,3 +31,13 @@ export async function requireRole(roles: Role[]) {
 export function withSchoolScope(schoolId: string, whereClause: object = {}): object {
   return { ...whereClause, schoolId };
 }
+
+// Subscription gate for subject-scoped student access (Phase E will implement
+// the real Subscription lookup; Phase D/E routes call it on every entry).
+export async function checkSubjectAccess(
+  studentId: string,
+  subjectId: string
+): Promise<boolean> {
+  // TODO: ربط فعلي بعد المرحلة E — replace with a real Subscription check
+  return true;
+}

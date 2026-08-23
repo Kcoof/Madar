@@ -37,6 +37,21 @@ type QuizResults = {
   notSubmitted: { id: string; fullName: string }[];
 };
 
+type LiveClass = {
+  id: string;
+  roomName: string | null;
+  rtmpUrl: string | null;
+  streamKey: string | null;
+  scheduledAt: string;
+  endedAt: string | null;
+  subject: { name: string; grade: { name: string } };
+};
+
+type LiveClassDetail = {
+  liveClass: LiveClass;
+  students: { id: string; fullName: string; email: string; micGranted: boolean }[];
+};
+
 type DraftAnswer = { text: string; isCorrect: boolean };
 type DraftQuestion = {
   type: "MCQ" | "TRUE_FALSE" | "SHORT_ANSWER" | "MULTI_SELECT";
@@ -83,6 +98,12 @@ export default function TeacherPage() {
   const [quizMaxAttempts, setQuizMaxAttempts] = useState(1);
   const [questions, setQuestions] = useState<DraftQuestion[]>([newQuestion()]);
 
+  const [showLiveForm, setShowLiveForm] = useState(false);
+  const [liveSubjectId, setLiveSubjectId] = useState("");
+  const [liveScheduledAt, setLiveScheduledAt] = useState("");
+  const [liveClasses, setLiveClasses] = useState<LiveClass[]>([]);
+  const [liveDetail, setLiveDetail] = useState<LiveClassDetail | null>(null);
+
   const grades = useMemo(() => stages.flatMap((s) => s.grades), [stages]);
   const subjects = useMemo(
     () => grades.find((g) => g.id === gradeId)?.subjects ?? [],
@@ -95,14 +116,16 @@ export default function TeacherPage() {
 
   const load = useCallback(async () => {
     try {
-      const [curriculum, lessonsData, quizzesData] = await Promise.all([
+      const [curriculum, lessonsData, quizzesData, liveData] = await Promise.all([
         apiFetch<{ stages: Stage[] }>("/api/academic/curriculum"),
         apiFetch<{ lessons: Lesson[] }>("/api/teacher/lessons"),
         apiFetch<{ quizzes: Quiz[] }>("/api/teacher/quizzes"),
+        apiFetch<{ liveClasses: LiveClass[] }>("/api/teacher/live-classes"),
       ]);
       setStages(curriculum.stages);
       setLessons(lessonsData.lessons);
       setQuizzes(quizzesData.quizzes);
+      setLiveClasses(liveData.liveClasses);
     } catch (err) {
       const message = err instanceof Error ? err.message : "فشل تحميل البيانات";
       if (message.includes("تسجيل الدخول")) router.push("/login");
@@ -223,6 +246,60 @@ export default function TeacherPage() {
           : q
       )
     );
+  }
+
+  async function onScheduleLive(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setPending(true);
+    try {
+      await apiFetch("/api/teacher/live-classes", {
+        method: "POST",
+        body: JSON.stringify({ subjectId: liveSubjectId, scheduledAt: liveScheduledAt }),
+      });
+      setLiveSubjectId("");
+      setLiveScheduledAt("");
+      setShowLiveForm(false);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل جدولة الحصة");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function onShowLiveDetail(id: string) {
+    setError(null);
+    try {
+      const data = await apiFetch<LiveClassDetail>(`/api/teacher/live-classes/${id}`);
+      setLiveDetail(liveDetail?.liveClass.id === id ? null : data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تحميل تفاصيل الحصة");
+    }
+  }
+
+  async function onToggleMic(classId: string, studentId: string, grant: boolean) {
+    setError(null);
+    try {
+      await apiFetch(`/api/live-classes/${classId}/${grant ? "grant-mic" : "revoke-mic"}/${studentId}`, {
+        method: "PATCH",
+      });
+      await onShowLiveDetail(classId);
+      if (liveDetail?.liveClass.id !== classId) return;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تحديث الإذن");
+    }
+  }
+
+  async function onEndLive(id: string) {
+    setError(null);
+    try {
+      await apiFetch(`/api/live-classes/${id}/end`, { method: "POST" });
+      setLiveDetail(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل إنهاء الحصة");
+    }
   }
 
   return (
@@ -544,6 +621,133 @@ export default function TeacherPage() {
           </CardContent>
         </Card>
       )}
+
+      <div className="flex items-center justify-between pt-4">
+        <h2 className="text-lg font-bold text-gray-700">البث المباشر</h2>
+        <Button onClick={() => setShowLiveForm((v) => !v)}>
+          {showLiveForm ? "إلغاء" : "جدولة حصة مباشرة"}
+        </Button>
+      </div>
+
+      {showLiveForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>حصة مباشرة جديدة</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={onScheduleLive} className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="liveSubject">المادة</Label>
+                <select id="liveSubject" className={selectClass} required value={liveSubjectId}
+                  onChange={(e) => setLiveSubjectId(e.target.value)}>
+                  <option value="">اختر المادة</option>
+                  {grades.flatMap((g) =>
+                    g.subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {g.name} — {s.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="liveAt">موعد الحصة</Label>
+                <Input id="liveAt" type="datetime-local" required value={liveScheduledAt}
+                  onChange={(e) => setLiveScheduledAt(e.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" disabled={pending || !liveSubjectId}>
+                  {pending ? "جارٍ الجدولة..." : "جدولة"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>الحصص المباشرة ({liveClasses.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>المادة / الصف</TableHead>
+                <TableHead>الموعد</TableHead>
+                <TableHead>الغرفة</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {liveClasses.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">
+                    {c.subject.name} — {c.subject.grade.name}
+                  </TableCell>
+                  <TableCell>{new Date(c.scheduledAt).toLocaleString("ar")}</TableCell>
+                  <TableCell dir="ltr" className="text-xs">{c.roomName ?? "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant={c.endedAt ? "secondary" : "default"}>
+                      {c.endedAt ? "منتهية" : "مجدولة"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="space-x-2 space-x-reverse">
+                    {!c.endedAt && (
+                      <Button size="sm" variant="outline" onClick={() => onShowLiveDetail(c.id)}>
+                        {liveDetail?.liveClass.id === c.id ? "إغلاق" : "الطلاب والأذونات"}
+                      </Button>
+                    )}
+                    {!c.endedAt && (
+                      <Button size="sm" variant="destructive" onClick={() => onEndLive(c.id)}>
+                        إنهاء
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {liveClasses.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500">
+                    لا توجد حصص مجدولة بعد
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+
+          {liveDetail && (
+            <div className="space-y-4 rounded-lg border p-4">
+              <div className="space-y-1 rounded bg-gray-50 p-3 text-sm">
+                <p className="font-medium">إعدادات البث لـ OBS (سرية — لك وحدهم):</p>
+                <p dir="ltr" className="break-all">RTMP: {liveDetail.liveClass.rtmpUrl}</p>
+                <p dir="ltr" className="break-all">Key: {liveDetail.liveClass.streamKey}</p>
+              </div>
+              <div>
+                <p className="mb-2 text-sm font-medium">أذونات المايك — طلاب الصف:</p>
+                <div className="space-y-2">
+                  {liveDetail.students.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between rounded border p-2">
+                      <span className="text-sm">{s.fullName}</span>
+                      <Button
+                        size="sm"
+                        variant={s.micGranted ? "destructive" : "outline"}
+                        onClick={() => onToggleMic(liveDetail.liveClass.id, s.id, !s.micGranted)}
+                      >
+                        {s.micGranted ? "سحب المايك" : "منح المايك"}
+                      </Button>
+                    </div>
+                  ))}
+                  {liveDetail.students.length === 0 && (
+                    <p className="text-sm text-gray-500">لا يوجد طلاب في هذا الصف بعد</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
       </div>
     </main>
   );

@@ -149,13 +149,17 @@ model File {
 }
 
 model LiveClass {
-  id             String    @id @default(cuid())
-  subjectId      String
-  teacherId      String
-  scheduledAt    DateTime
-  providerRoomId String?
-  recordingUrl   String?
-  createdAt      DateTime  @default(now())
+  id           String    @id @default(cuid())
+  subjectId    String
+  teacherId    String
+  scheduledAt  DateTime
+  roomName     String?
+  rtmpUrl      String? // teacher-only — NEVER returned to students
+  streamKey    String? // secret — NEVER returned in student-facing responses
+  recordingUrl String?
+  micGrants    String[] // student ids allowed to publish audio/video
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
 }
 
 model Quiz {
