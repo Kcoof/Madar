@@ -23,7 +23,7 @@ export function DashboardShell({
       key={item.href}
       href={item.href}
       className={cn(
-        "whitespace-nowrap rounded-md px-3 py-2 text-sm",
+        "block whitespace-nowrap rounded-md px-3 py-2 text-sm",
         mobile && "border",
         pathname === item.href
           ? mobile
