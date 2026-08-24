@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
 import { requireRole, withSchoolScope } from "@/lib/permissions";
 import { provisionLiveClass } from "@/lib/livekit";
+import { notifyUsers } from "@/lib/notifications";
 import { z } from "zod";
 
 const scheduleSchema = z.object({
@@ -69,6 +70,30 @@ export async function POST(request: Request) {
         streamKey,
       },
     });
+
+    // Notify subscribed students of this school + grade (only they can join)
+    const subscribed = await prisma.subscription.findMany({
+      where: {
+        status: "ACTIVE",
+        OR: [{ subjectId: subject.id }, { subjectId: null, plan: { type: "FULL_YEAR" } }],
+      },
+      select: { studentId: true },
+    });
+    const students = await prisma.user.findMany({
+      where: {
+        id: { in: [...new Set(subscribed.map((s) => s.studentId))] },
+        role: "STUDENT",
+        isActive: true,
+        schoolId: user.schoolId,
+        gradeId: subject.gradeId,
+      },
+      select: { id: true, email: true },
+    });
+    await notifyUsers(
+      students,
+      "حصة مباشرة جديدة",
+      `تمت جدولة حصة مباشرة في مادة ${subject.name} بتاريخ ${body.scheduledAt.toLocaleString("ar")}.`
+    );
 
     const [liveClass] = await decorate([created]);
     return NextResponse.json({ liveClass }, { status: 201 });

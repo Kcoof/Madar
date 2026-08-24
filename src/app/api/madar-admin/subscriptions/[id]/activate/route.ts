@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
 import { requireRole } from "@/lib/permissions";
+import { notifyUser } from "@/lib/notifications";
 
 // PATCH /api/madar-admin/subscriptions/:id/activate — PENDING → ACTIVE with
 // a one-year validity window + AuditLog entry. MADAR_OWNER only.
@@ -15,8 +16,9 @@ export async function PATCH(
     const subscription = await prisma.subscription.findUnique({
       where: { id: params.id },
       include: {
-        student: { select: { id: true, fullName: true } },
-        plan: { select: { type: true } },
+        student: { select: { id: true, fullName: true, email: true } },
+        plan: { select: { type: true, name: true } },
+        subject: { select: { name: true } },
       },
     });
     if (!subscription) {
@@ -48,6 +50,16 @@ export async function PATCH(
         },
       },
     });
+
+    // Notify the student (in-app + email placeholder)
+    await notifyUser(
+      subscription.student.id,
+      "تم تفعيل اشتراكك",
+      `تم تفعيل «${subscription.plan.name}»${
+        subscription.subject ? ` — مادة ${subscription.subject.name}` : " (جميع المواد)"
+      } لمدة سنة.`,
+      { email: subscription.student.email }
+    );
 
     return NextResponse.json({
       subscription: {
