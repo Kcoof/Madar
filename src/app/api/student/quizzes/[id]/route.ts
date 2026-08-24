@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
-import { requireRole } from "@/lib/permissions";
+import { requireRole, checkSubjectAccess } from "@/lib/permissions";
 import { visiblePublishedLessonsWhere } from "@/lib/lesson-visibility";
 
 // GET /api/student/quizzes/:id — the quiz for taking it. `isCorrect` is NEVER
-// included; students only see answer ids and texts.
+// included; students only see answer ids and texts. The quiz's subject must
+// be covered by an ACTIVE subscription (Phase E).
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
@@ -29,6 +30,14 @@ export async function GET(
     });
     if (!quiz) {
       throw new ApiError(404, "QUIZ_NOT_FOUND", "الاختبار غير متاح");
+    }
+
+    if (!(await checkSubjectAccess(student.id, quiz.lesson.unit.subject.id))) {
+      throw new ApiError(
+        403,
+        "SUBSCRIPTION_REQUIRED",
+        "هذه المادة تتطلب اشتراكاً فعالاً"
+      );
     }
 
     return NextResponse.json({

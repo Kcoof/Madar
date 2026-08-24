@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
-import { requireRole } from "@/lib/permissions";
+import { requireRole, checkSubjectAccess } from "@/lib/permissions";
 import { visiblePublishedLessonsWhere } from "@/lib/lesson-visibility";
 import { z } from "zod";
 
@@ -10,7 +10,7 @@ const progressSchema = z.object({
 });
 
 // POST /api/student/videos/:id/progress — update the student's watched
-// percentage for a video inside a lesson visible to them.
+// percentage for a video inside a lesson visible AND subscribed to.
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
@@ -24,9 +24,18 @@ export async function POST(
 
     const video = await prisma.video.findFirst({
       where: { id: params.id, lesson: lessonsWhere },
+      include: { lesson: { include: { unit: { include: { subject: true } } } } },
     });
     if (!video) {
       throw new ApiError(404, "VIDEO_NOT_FOUND", "الفيديو غير متاح");
+    }
+
+    if (!(await checkSubjectAccess(student.id, video.lesson.unit.subject.id))) {
+      throw new ApiError(
+        403,
+        "SUBSCRIPTION_REQUIRED",
+        "هذه المادة تتطلب اشتراكاً فعالاً"
+      );
     }
 
     const body = progressSchema.parse(await request.json());

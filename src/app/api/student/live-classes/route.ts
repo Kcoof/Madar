@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/api";
-import { requireRole } from "@/lib/permissions";
+import { requireRole, subscriptionScope } from "@/lib/permissions";
 
 // GET /api/student/live-classes — upcoming (not ended) classes of the
-// student's grade and school. rtmpUrl/streamKey are NEVER included.
+// student's grade and school, limited to subscribed subjects (Phase E).
+// rtmpUrl/streamKey are NEVER included.
 export async function GET() {
   try {
     const student = await requireRole(["STUDENT"]);
@@ -28,10 +29,15 @@ export async function GET() {
         })
       : [];
 
+    const scope = await subscriptionScope(student.id);
+    const allowed = gradeSubjects.filter(
+      (s) => scope.fullYear || scope.subjectIds.has(s.id)
+    );
+
     const liveClasses = await prisma.liveClass.findMany({
       where: {
         endedAt: null,
-        subjectId: { in: gradeSubjects.map((s) => s.id) },
+        subjectId: { in: allowed.map((s) => s.id) },
         ...(schoolTeachers.length > 0
           ? { teacherId: { in: schoolTeachers.map((t) => t.id) } }
           : {}),

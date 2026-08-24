@@ -97,6 +97,7 @@ model Subject {
   gradeId String
   grade   Grade  @relation(fields: [gradeId], references: [id])
   units   Unit[]
+  subscriptions Subscription[]
 }
 
 model Unit {
@@ -228,22 +229,25 @@ model Progress {
 }
 
 model SubscriptionPlan {
-  id    String           @id @default(cuid())
-  type  SubscriptionType
-  name  String
-  price Int
+  id     String           @id @default(cuid())
+  type   SubscriptionType
+  name   String
+  price  Int
+  subscriptions Subscription[]
 }
 
 model Subscription {
-  id        String             @id @default(cuid())
+  id        String              @id @default(cuid())
   studentId String
-  student   User               @relation(fields: [studentId], references: [id])
+  student   User                @relation(fields: [studentId], references: [id])
   planId    String
-  subjectId String? // only for SINGLE_SUBJECT type
-  status    SubscriptionStatus @default(PENDING)
+  plan      SubscriptionPlan    @relation(fields: [planId], references: [id])
+  subjectId String?             // only for SINGLE_SUBJECT type
+  subject   Subject?            @relation(fields: [subjectId], references: [id])
+  status    SubscriptionStatus  @default(PENDING)
   startDate DateTime?
   endDate   DateTime?
-  createdAt DateTime           @default(now())
+  createdAt DateTime            @default(now())
 }
 
 model SchoolContract {

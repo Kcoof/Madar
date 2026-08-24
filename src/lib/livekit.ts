@@ -16,10 +16,14 @@ export function livekitWsUrl(): string | null {
   return process.env.LIVEKIT_URL ?? null;
 }
 
-// Service clients talk HTTP (Twirp); the env var holds the ws:// URL the
-// browser client uses — convert the scheme.
+// Service clients talk HTTP (Twirp). They default to the LIVEKIT_URL host,
+// but LIVEKIT_API_URL lets the server reach a co-located LiveKit over
+// localhost when the firewall filters the LAN address.
 function httpApiUrl(): string {
-  return process.env.LIVEKIT_URL!.replace(/^ws/, "http");
+  return (
+    process.env.LIVEKIT_API_URL ||
+    process.env.LIVEKIT_URL!.replace(/^ws/, "http")
+  );
 }
 
 // Provisions a room + RTMP ingress for a scheduled class. In local mode the

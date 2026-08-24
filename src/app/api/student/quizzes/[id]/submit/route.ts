@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ApiError, errorResponse } from "@/lib/api";
-import { requireRole } from "@/lib/permissions";
+import { requireRole, checkSubjectAccess } from "@/lib/permissions";
 import { visiblePublishedLessonsWhere } from "@/lib/lesson-visibility";
 import { submitQuizSchema } from "@/lib/validators/quiz";
 import { computeSubjectProgress } from "@/lib/progress";
@@ -65,6 +65,14 @@ export async function POST(
     });
     if (!quiz) {
       throw new ApiError(404, "QUIZ_NOT_FOUND", "الاختبار غير متاح");
+    }
+
+    if (!(await checkSubjectAccess(student.id, quiz.lesson.unit.subject.id))) {
+      throw new ApiError(
+        403,
+        "SUBSCRIPTION_REQUIRED",
+        "هذه المادة تتطلب اشتراكاً فعالاً"
+      );
     }
 
     const attemptsUsed = await prisma.result.count({

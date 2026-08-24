@@ -36,31 +36,80 @@ type StudentLiveClass = {
   micGranted: boolean;
 };
 
+type MySubscription = {
+  id: string;
+  status: string;
+  createdAt: string;
+  plan: { name: string; type: string; price: number };
+  subject: { name: string } | null;
+};
+
+type Plan = { id: string; name: string; type: string; price: number };
+
+type CurriculumStage = {
+  id: string;
+  name: string;
+  grades: { id: string; name: string; subjects: { id: string; name: string }[] }[];
+};
+
 export default function StudentPage() {
   const router = useRouter();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
   const [liveClasses, setLiveClasses] = useState<StudentLiveClass[]>([]);
+  const [subscriptions, setSubscriptions] = useState<MySubscription[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [stages, setStages] = useState<CurriculumStage[]>([]);
+  const [planId, setPlanId] = useState("");
+  const [subjectId, setSubjectId] = useState("");
+  const [subMessage, setSubMessage] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [lessonsData, quizzesData, liveData] = await Promise.all([
+      const [lessonsData, quizzesData, liveData, subsData, curriculum] = await Promise.all([
         apiFetch<{ lessons: Lesson[]; message?: string }>("/api/student/lessons"),
         apiFetch<{ quizzes: StudentQuiz[]; message?: string }>("/api/student/quizzes"),
         apiFetch<{ liveClasses: StudentLiveClass[]; message?: string }>("/api/student/live-classes"),
+        apiFetch<{ subscriptions: MySubscription[]; plans: Plan[] }>("/api/student/subscriptions"),
+        apiFetch<{ stages: CurriculumStage[] }>("/api/academic/curriculum"),
       ]);
       setLessons(lessonsData.lessons);
       setMessage(lessonsData.message ?? quizzesData.message ?? liveData.message ?? null);
       setQuizzes(quizzesData.quizzes);
       setLiveClasses(liveData.liveClasses);
+      setSubscriptions(subsData.subscriptions);
+      setPlans(subsData.plans);
+      setStages(curriculum.stages);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "فشل تحميل البيانات";
       if (msg.includes("تسجيل الدخول")) router.push("/login");
       setError(msg);
     }
   }, [router]);
+
+  async function onRequestSubscription(e: React.FormEvent) {
+    e.preventDefault();
+    setSubMessage(null);
+    setError(null);
+    try {
+      await apiFetch("/api/student/subscriptions/request", {
+        method: "POST",
+        body: JSON.stringify({ planId, subjectId: subjectId || undefined }),
+      });
+      setPlanId("");
+      setSubjectId("");
+      setSubMessage("تم إرسال الطلب — بانتظار موافقة إدارة مدار");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل إرسال الطلب");
+    }
+  }
+
+  const gradeSubjects = stages.flatMap((s) => s.grades).flatMap((g) => g.subjects);
+  const selectedPlan = plans.find((p) => p.id === planId);
+  const hasActive = subscriptions.some((s) => s.status === "ACTIVE");
 
   useEffect(() => {
     load();
@@ -72,6 +121,69 @@ export default function StudentPage() {
       <div className="mx-auto max-w-4xl space-y-6 p-6">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {message && <p className="text-sm text-amber-600">{message}</p>}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>اشتراكاتي</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {subscriptions.map((s) => (
+              <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                <div>
+                  <p className="text-sm font-medium">
+                    {s.plan.name}
+                    {s.subject ? ` — ${s.subject.name}` : " — جميع المواد"}
+                  </p>
+                  <p className="text-xs text-gray-500">{s.plan.price} ريال / سنة</p>
+                </div>
+                <Badge variant={s.status === "ACTIVE" ? "default" : "secondary"}>
+                  {s.status === "ACTIVE" ? "نشط" : s.status === "PENDING" ? "بانتظار الموافقة" : s.status}
+                </Badge>
+              </div>
+            ))}
+            {subscriptions.length === 0 && (
+              <p className="text-sm text-gray-500">لا توجد اشتراكات — اطلب اشتراكاً لفتح المحتوى</p>
+            )}
+          </div>
+
+          <form onSubmit={onRequestSubscription} className="grid gap-3 sm:grid-cols-3">
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              required
+              value={planId}
+              onChange={(e) => setPlanId(e.target.value)}
+            >
+              <option value="">اختر الخطة</option>
+              {plans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.price} ريال)
+                </option>
+              ))}
+            </select>
+            {selectedPlan?.type === "SINGLE_SUBJECT" && (
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                required
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+              >
+                <option value="">اختر المادة</option>
+                {gradeSubjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button type="submit" disabled={!planId}>
+              طلب اشتراك
+            </Button>
+          </form>
+          {subMessage && <p className="text-sm text-green-700">{subMessage}</p>}
+          {!hasActive && subscriptions.some((s) => s.status !== "ACTIVE") && null}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2">
         {lessons.map((lesson) => (

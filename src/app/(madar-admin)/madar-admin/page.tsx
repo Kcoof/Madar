@@ -29,6 +29,14 @@ type MadarUser = {
   school: { name: string } | null;
 };
 
+type PendingSubscription = {
+  id: string;
+  createdAt: string;
+  student: { fullName: string; email: string };
+  plan: { name: string; type: string; price: number };
+  subject: { name: string } | null;
+};
+
 const roleLabels: Record<string, string> = {
   MADAR_OWNER: "مالك مدار",
   MADAR_SUPPORT: "دعم مدار",
@@ -42,6 +50,8 @@ export default function MadarAdminPage() {
   const router = useRouter();
   const [schools, setSchools] = useState<School[]>([]);
   const [users, setUsers] = useState<MadarUser[]>([]);
+  const [pendingSubs, setPendingSubs] = useState<PendingSubscription[]>([]);
+  const [busySubId, setBusySubId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [pending, setPending] = useState(false);
@@ -50,18 +60,33 @@ export default function MadarAdminPage() {
 
   const load = useCallback(async () => {
     try {
-      const [schoolsData, usersData] = await Promise.all([
+      const [schoolsData, usersData, pendingData] = await Promise.all([
         apiFetch<{ schools: School[] }>("/api/madar-admin/schools"),
         apiFetch<{ users: MadarUser[] }>("/api/madar-admin/users"),
+        apiFetch<{ pending: PendingSubscription[] }>("/api/madar-admin/subscriptions/pending"),
       ]);
       setSchools(schoolsData.schools);
       setUsers(usersData.users);
+      setPendingSubs(pendingData.pending);
     } catch (err) {
       const message = err instanceof Error ? err.message : "فشل تحميل البيانات";
       if (message.includes("تسجيل الدخول")) router.push("/login");
       setError(message);
     }
   }, [router]);
+
+  async function onActivateSub(id: string) {
+    setBusySubId(id);
+    setError(null);
+    try {
+      await apiFetch(`/api/madar-admin/subscriptions/${id}/activate`, { method: "PATCH" });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "فشل تفعيل الاشتراك");
+    } finally {
+      setBusySubId(null);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -172,6 +197,56 @@ export default function MadarAdminPage() {
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            طلبات الاشتراك المعلقة ({pendingSubs.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الطالب</TableHead>
+                <TableHead>الخطة</TableHead>
+                <TableHead>المادة</TableHead>
+                <TableHead>تاريخ الطلب</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pendingSubs.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell className="font-medium">
+                    {s.student.fullName}
+                    <span className="block text-xs text-gray-500" dir="ltr">{s.student.email}</span>
+                  </TableCell>
+                  <TableCell>{s.plan.name} ({s.plan.price} ريال)</TableCell>
+                  <TableCell>{s.subject?.name ?? "جميع المواد"}</TableCell>
+                  <TableCell>{new Date(s.createdAt).toLocaleDateString("ar")}</TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      disabled={busySubId === s.id}
+                      onClick={() => onActivateSub(s.id)}
+                    >
+                      {busySubId === s.id ? "..." : "تفعيل"}
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {pendingSubs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-gray-500">
+                    لا توجد طلبات معلقة
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

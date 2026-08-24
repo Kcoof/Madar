@@ -32,12 +32,31 @@ export function withSchoolScope(schoolId: string, whereClause: object = {}): obj
   return { ...whereClause, schoolId };
 }
 
-// Subscription gate for subject-scoped student access (Phase E will implement
-// the real Subscription lookup; Phase D/E routes call it on every entry).
+// Subscription scope for a student: full-year access covers every subject;
+// single-subject subscriptions cover exactly their subject (Phase E).
+export async function subscriptionScope(studentId: string): Promise<{
+  fullYear: boolean;
+  subjectIds: Set<string>;
+}> {
+  const subs = await prisma.subscription.findMany({
+    where: { studentId, status: "ACTIVE" },
+    select: { subjectId: true, plan: { select: { type: true } } },
+  });
+  return {
+    fullYear: subs.some((s) => s.plan.type === "FULL_YEAR"),
+    subjectIds: new Set(
+      subs.filter((s) => s.subjectId).map((s) => s.subjectId as string)
+    ),
+  };
+}
+
+// Subscription gate for subject-scoped student access — used by the
+// student lessons/quizzes/live-classes routes. An unsubscribed subject is
+// rejected with SUBSCRIPTION_REQUIRED, not a generic permission error.
 export async function checkSubjectAccess(
   studentId: string,
   subjectId: string
 ): Promise<boolean> {
-  // TODO: ربط فعلي بعد المرحلة E — replace with a real Subscription check
-  return true;
+  const scope = await subscriptionScope(studentId);
+  return scope.fullYear || scope.subjectIds.has(subjectId);
 }
