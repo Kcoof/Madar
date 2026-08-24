@@ -36,14 +36,11 @@ type StudentLiveClass = {
   micGranted: boolean;
 };
 
-type JoinResult = { mode: string; canPublish: boolean; roomName: string | null };
-
 export default function StudentPage() {
   const router = useRouter();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
   const [liveClasses, setLiveClasses] = useState<StudentLiveClass[]>([]);
-  const [joinResults, setJoinResults] = useState<Record<string, JoinResult | string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,19 +61,6 @@ export default function StudentPage() {
       setError(msg);
     }
   }, [router]);
-
-  async function onJoin(id: string) {
-    setJoinResults((prev) => ({ ...prev, [id]: "..." }));
-    try {
-      const data = await apiFetch<JoinResult>(`/api/live-classes/${id}/join`, { method: "POST" });
-      setJoinResults((prev) => ({ ...prev, [id]: data }));
-    } catch (err) {
-      setJoinResults((prev) => ({
-        ...prev,
-        [id]: err instanceof Error ? err.message : "فشل الدخول",
-      }));
-    }
-  }
 
   useEffect(() => {
     load();
@@ -148,9 +132,7 @@ export default function StudentPage() {
 
       <h2 className="pt-4 text-lg font-bold text-gray-700">الحصص المباشرة</h2>
       <div className="grid gap-4">
-        {liveClasses.map((c) => {
-          const jr = joinResults[c.id];
-          return (
+        {liveClasses.map((c) => (
             <Card key={c.id}>
               <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                 <div className="space-y-1">
@@ -163,19 +145,13 @@ export default function StudentPage() {
                   </p>
                 </div>
                 <div className="space-y-2 text-left">
-                  <Button onClick={() => onJoin(c.id)}>دخول الحصة</Button>
-                  {jr && typeof jr === "string" && <p className="text-xs text-gray-500">{jr}</p>}
-                  {jr && typeof jr === "object" && (
-                    <p className="text-xs text-gray-600">
-                      تم إصدار توكن الدخول ({jr.mode}) — غرفة: <span dir="ltr">{jr.roomName}</span>.
-                      مشغّل الفيديو الفعلي يُفعَّل عند ربط LiveKit.
-                    </p>
-                  )}
+                  <Link href={`/live/${c.id}`}>
+                    <Button>دخول الغرفة</Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
+        ))}
         {liveClasses.length === 0 && (
           <p className="text-center text-gray-500">لا توجد حصص مباشرة مجدولة لصفك</p>
         )}

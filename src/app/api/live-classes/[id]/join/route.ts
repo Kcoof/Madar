@@ -50,7 +50,7 @@ export async function POST(
     const canPublish =
       user.role === "TEACHER" || liveClass.micGrants.includes(user.id);
 
-    const token = mintJoinToken(user.id, liveClass.roomName ?? liveClass.id, canPublish);
+    const token = await mintJoinToken(user.id, liveClass.roomName ?? liveClass.id, canPublish);
 
     return NextResponse.json({
       token,

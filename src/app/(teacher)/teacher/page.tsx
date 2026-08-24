@@ -42,6 +42,7 @@ type LiveClass = {
   roomName: string | null;
   rtmpUrl: string | null;
   streamKey: string | null;
+  whipUrl?: string | null;
   scheduledAt: string;
   endedAt: string | null;
   subject: { name: string; grade: { name: string } };
@@ -695,14 +696,17 @@ export default function TeacherPage() {
                   </TableCell>
                   <TableCell className="space-x-2 space-x-reverse">
                     {!c.endedAt && (
-                      <Button size="sm" variant="outline" onClick={() => onShowLiveDetail(c.id)}>
-                        {liveDetail?.liveClass.id === c.id ? "إغلاق" : "الطلاب والأذونات"}
-                      </Button>
-                    )}
-                    {!c.endedAt && (
-                      <Button size="sm" variant="destructive" onClick={() => onEndLive(c.id)}>
-                        إنهاء
-                      </Button>
+                      <>
+                        <Link href={`/live/${c.id}`}>
+                          <Button size="sm">دخول الغرفة</Button>
+                        </Link>
+                        <Button size="sm" variant="outline" onClick={() => onShowLiveDetail(c.id)}>
+                          {liveDetail?.liveClass.id === c.id ? "إغلاق" : "الطلاب والأذونات"}
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => onEndLive(c.id)}>
+                          إنهاء
+                        </Button>
+                      </>
                     )}
                   </TableCell>
                 </TableRow>
@@ -720,9 +724,12 @@ export default function TeacherPage() {
           {liveDetail && (
             <div className="space-y-4 rounded-lg border p-4">
               <div className="space-y-1 rounded bg-gray-50 p-3 text-sm">
-                <p className="font-medium">إعدادات البث لـ OBS (سرية — لك وحدهم):</p>
-                <p dir="ltr" className="break-all">RTMP: {liveDetail.liveClass.rtmpUrl}</p>
-                <p dir="ltr" className="break-all">Key: {liveDetail.liveClass.streamKey}</p>
+                <p className="font-medium">إعدادات البث (سرية — لك وحدك):</p>
+                <p dir="ltr" className="break-all">WHIP: {liveDetail.liveClass.whipUrl ?? "غير متاح"}</p>
+                <p className="text-xs text-gray-500">
+                  انسخ رابط WHIP إلى OBS (إخراج WHIP) أو تطبيق Larix Broadcaster على الجوال لبث الكاميرا
+                </p>
+                <p dir="ltr" className="break-all text-xs text-gray-400">RTMP: {liveDetail.liveClass.rtmpUrl}</p>
               </div>
               <div>
                 <p className="mb-2 text-sm font-medium">أذونات المايك — طلاب الصف:</p>
