@@ -52,7 +52,28 @@ async function login(email, password) {
 
 async function main() {
   const owner = await login("owner@madar.local", "MadarOwner#2026");
-  const student = await login("student@school-a.local", "Demo#1234");
+  const adminA = await login("pb-admin-a-1787524093717@school-a.local", "PbAdmin#1");
+
+  // --- dedicated fresh students so this test is independent of other suites
+  const TS2 = Date.now();
+  const PE1 = `pe-student-${TS2}@school-a.local`;
+  const PE2 = `pe-student2-${TS2}@school-a.local`;
+  const curriculum0 = await call(adminA, "/api/academic/curriculum");
+  const grade0 = curriculum0.body.stages.flatMap((s) => s.grades).find((g) => g.name === "الأول المتوسط");
+  for (const email of [PE1, PE2]) {
+    const created = await call(adminA, "/api/school-admin/users", {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: "طالب اختبار اشتراكات",
+        email,
+        password: "PeStudent#1",
+        role: "STUDENT",
+        gradeId: grade0.id,
+      }),
+    });
+    if (created.status !== 201) throw new Error(`failed to create ${email}`);
+  }
+  const student = await login(PE1, "PeStudent#1");
 
   // --- fresh curriculum references
   const curriculum = await call(student, "/api/academic/curriculum");
@@ -92,7 +113,7 @@ async function main() {
   // --- owner sees and activates the request
   const pending = await call(owner, "/api/madar-admin/subscriptions/pending");
   const mine = (pending.body?.pending ?? []).find(
-    (p) => p.student.email === "student@school-a.local" && p.subject?.name === "الرياضيات"
+    (p) => p.student.email === PE1 && p.subject?.name === "الرياضيات"
   );
   check("owner sees the pending request", pending.status === 200 && Boolean(mine));
 
@@ -180,14 +201,14 @@ async function main() {
   check("student blocked from owner subscription endpoints (403)", forbidden.status === 403);
 
   // --- FULL_YEAR opens everything (second school-A student)
-  const student2 = await login("pb-student-a-1787524093717@school-a.local", "PbStudent#1");
+  const student2 = await login(PE2, "PeStudent#1");
   const req2 = await call(student2, "/api/student/subscriptions/request", {
     method: "POST",
     body: JSON.stringify({ planId: fullPlan.id }),
   });
   const pending2 = await call(owner, "/api/madar-admin/subscriptions/pending");
   const mine2 = (pending2.body?.pending ?? []).find(
-    (p) => p.student.email === "pb-student-a-1787524093717@school-a.local"
+    (p) => p.student.email === PE2
   );
   await call(owner, `/api/madar-admin/subscriptions/${mine2.id}/activate`, { method: "PATCH" });
   const checkScienceFull = await call(student2, `/api/student/access-check?subjectId=${science.id}`);

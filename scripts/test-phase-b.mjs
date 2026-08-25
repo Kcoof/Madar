@@ -40,6 +40,28 @@ async function call(j, path, options = {}) {
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 
+// Test-setup helper since Phase E: give a student an ACTIVE FULL_YEAR
+// subscription through the real API flow (request → owner activates).
+async function grantFullYear(j, email) {
+  const subs = await call(j, "/api/student/subscriptions");
+  const full = subs.body?.plans?.find((p) => p.type === "FULL_YEAR");
+  const req = await call(j, "/api/student/subscriptions/request", {
+    method: "POST",
+    body: JSON.stringify({ planId: full.id }),
+  });
+  if (req.status !== 201) return; // already requested or active
+  const ow = jar();
+  await call(ow, "/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email: "owner@madar.local", password: "MadarOwner#2026" }),
+  });
+  const pending = await call(ow, "/api/madar-admin/subscriptions/pending");
+  const mine = (pending.body?.pending ?? []).find((p) => p.student.email === email);
+  if (mine) {
+    await call(ow, `/api/madar-admin/subscriptions/${mine.id}/activate`, { method: "PATCH" });
+  }
+}
+
 async function main() {
   // --- owner sets up two fresh schools
   const owner = jar();
@@ -140,6 +162,7 @@ async function main() {
     method: "POST",
     body: JSON.stringify({ email: `pb-student-b-${TS}@school-b.local`, password: "PbStudent#2" }),
   });
+  await grantFullYear(studentB, `pb-student-b-${TS}@school-b.local`);
 
   const listB1 = await call(studentB, "/api/student/lessons");
   const titlesB1 = (listB1.body?.lessons ?? []).map((l) => l.title);
@@ -178,6 +201,7 @@ async function main() {
     method: "POST",
     body: JSON.stringify({ email: `pb-student-a-${TS}@school-a.local`, password: "PbStudent#1" }),
   });
+  await grantFullYear(studentA, `pb-student-a-${TS}@school-a.local`);
   const listA = await call(studentA, "/api/student/lessons");
   const titlesA = (listA.body?.lessons ?? []).map((l) => l.title);
   check(

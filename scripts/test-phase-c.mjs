@@ -1,3 +1,4 @@
+import { grantFullYear } from "./test-helpers.mjs";
 // Phase C acceptance test (madar_plan_v2.0.md):
 //   1. `submit` computes the score SERVER-SIDE only — a forged "score" in the
 //      request body is ignored.
@@ -54,6 +55,7 @@ async function login(email, password) {
 async function main() {
   const teacher = await login("teacher@school-a.local", "Demo#1234");
   const student = await login("student@school-a.local", "Demo#1234");
+  await grantFullYear({ call, jar, student, email: "student@school-a.local" });
 
   // --- find a PUBLISHED lesson matching the demo student's grade (الأول المتوسط),
   // creating one if the newest published lesson belongs to another grade.

@@ -1,3 +1,4 @@
+import { grantFullYear } from "./test-helpers.mjs";
 // Phase D acceptance test (madar_plan_v2.0.md):
 //   1. rtmpUrl and streamKey NEVER appear in any student-facing response
 //      (list AND join) — checked against the actual secret values.
@@ -54,6 +55,7 @@ async function login(email, password) {
 async function main() {
   const teacher = await login("teacher@school-a.local", "Demo#1234");
   const student = await login("student@school-a.local", "Demo#1234");
+  await grantFullYear({ call, jar, student, email: "student@school-a.local" });
 
   // --- schedule a class on grade-1 math
   const curriculum = await call(teacher, "/api/academic/curriculum");

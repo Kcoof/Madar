@@ -9,7 +9,8 @@
     "lint": "next lint",
     "db:seed": "node prisma/seed.mjs",
     "db:seed:academic": "node prisma/seed-academic.mjs",
-    "db:seed:plans": "node prisma/seed-plans.mjs"
+    "db:seed:plans": "node prisma/seed-plans.mjs",
+    "test:all": "for t in a b c d e f; do node scripts/test-phase-$t.mjs || exit 1; done"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
